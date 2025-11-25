@@ -1,0 +1,21 @@
+{
+    "name": "Oasis Asset Tracker",
+    "short_name": "Rose助手",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#f3f4f6",
+    "theme_color": "#002776",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "https://s2.coinmarketcap.com/static/img/coins/200x200/7653.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "https://s2.coinmarketcap.com/static/img/coins/200x200/7653.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

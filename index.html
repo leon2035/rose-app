@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rose 资产助手</title>
+    
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#002776">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://s2.coinmarketcap.com/static/img/coins/200x200/7653.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .gradient-card { background: linear-gradient(135deg, #002776 0%, #00a1df 100%); }
+        [v-cloak] { display: none; }
+        /* 针对 iOS PWA 的顶部安全区域优化 */
+        .safe-top { padding-top: env(safe-area-inset-top); }
+    </style>
+</head>
+<body class="text-gray-800 min-h-screen flex flex-col items-center safe-top pb-10">
+
+    <div id="app" v-cloak class="w-full max-w-xl p-4 space-y-5">
+        
+        <div v-if="deferredPrompt" class="bg-blue-600 text-white p-3 rounded-lg shadow-lg flex justify-between items-center text-sm animate-bounce">
+            <span>安装 Rose 助手到桌面，体验更好</span>
+            <button @click="installPWA" class="bg-white text-blue-600 px-3 py-1 rounded font-bold text-xs">安装</button>
+        </div>
+
+        <div class="flex justify-between items-center pt-2">
+            <div class="flex items-center gap-2">
+                <img src="https://s2.coinmarketcap.com/static/img/coins/64x64/7653.png" alt="Rose" class="w-8 h-8 rounded-full">
+                <h1 class="text-xl font-bold">Oasis Tracker</h1>
+            </div>
+            <div class="text-xs font-medium bg-white px-2 py-1 rounded border border-blue-100 text-blue-600 shadow-sm">
+                ROSE ≈ ${{ formatPrice(price) }}
+            </div>
+        </div>
+
+        <div class="gradient-card rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+            <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+            
+            <p class="text-blue-200 text-xs font-medium tracking-wider mb-1">总价值 (USD)</p>
+            <div class="text-4xl font-bold tracking-tight mb-4">
+                $ {{ formatCurrency(totalValue) }}
+            </div>
+            
+            <div class="flex justify-between items-end border-t border-white/20 pt-4">
+                <div>
+                    <p class="text-blue-200 text-xs mb-0.5">持仓数量</p>
+                    <div class="text-xl font-semibold flex items-center gap-1">
+                        {{ formatNumber(totalRose) }} <span class="text-sm opacity-80">ROSE</span>
+                    </div>
+                </div>
+                <button @click="refreshAll" :disabled="loading" class="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full active:bg-white/30 transition">
+                    <i class="fa-solid fa-rotate-right" :class="{'animate-spin': loading}"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <div v-for="(item, index) in addresses" :key="item.address" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                <div class="flex-1 min-w-0 mr-3">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-gray-400">#{{index + 1}}</span>
+                        <div class="text-xs font-mono text-gray-500 truncate bg-gray-50 px-1.5 py-0.5 rounded cursor-pointer" @click="copy(item.address)">
+                            {{ formatAddress(item.address) }}
+                        </div>
+                    </div>
+                    <div class="text-lg font-bold text-gray-800 leading-tight">
+                        {{ formatNumber(item.balance) }}
+                    </div>
+                    <div class="text-xs text-gray-400">≈ ${{ formatCurrency(item.balance * price) }}</div>
+                </div>
+                <button @click="removeAddress(index)" class="text-gray-300 hover:text-red-500 p-2">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="fixed bottom-6 right-6">
+            <button @click="showAddModal = true" class="w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-300 flex items-center justify-center text-xl hover:scale-105 transition active:scale-95">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+        </div>
+
+        <div v-if="showAddModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" @click.self="showAddModal = false">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+                <h3 class="text-lg font-bold mb-4">添加观察钱包</h3>
+                <input v-model="newAddress" type="text" placeholder="oasis1..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm mb-4 outline-none focus:border-blue-500">
+                <div class="flex gap-3">
+                    <button @click="showAddModal = false" class="flex-1 py-2.5 text-gray-500 font-medium text-sm">取消</button>
+                    <button @click="addAddress" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 font-medium text-sm shadow-md">确认添加</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 注册 Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(reg => console.log('SW Registered', reg.scope));
+            });
+        }
+
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    price: 0,
+                    loading: false,
+                    showAddModal: false,
+                    deferredPrompt: null,
+                    newAddress: '',
+                    addresses: JSON.parse(localStorage.getItem('rose_addresses')) || [
+                        { address: 'oasis1qpfpj0fr6tv3k54p2euddyj6lezm5tfqhv3qjtd6', balance: 0 }
+                    ]
+                }
+            },
+            computed: {
+                totalRose() { return this.addresses.reduce((sum, item) => sum + (parseFloat(item.balance) || 0), 0); },
+                totalValue() { return this.totalRose * this.price; }
+            },
+            methods: {
+                formatNumber(n) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n); },
+                formatCurrency(n) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n); },
+                formatPrice(n) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 4 }).format(n); },
+                formatAddress(a) { return a ? a.substring(0, 8) + '...' + a.substring(a.length - 6) : ''; },
+                
+                async addAddress() {
+                    if (!this.newAddress.startsWith('oasis1')) return alert('地址格式错误');
+                    if (this.addresses.find(i => i.address === this.newAddress)) return alert('已存在');
+                    this.addresses.push({ address: this.newAddress, balance: 0 });
+                    this.newAddress = '';
+                    this.showAddModal = false;
+                    this.saveData();
+                    await this.refreshAll();
+                },
+                removeAddress(idx) {
+                    if(confirm('删除此地址?')) { this.addresses.splice(idx, 1); this.saveData(); }
+                },
+                saveData() { localStorage.setItem('rose_addresses', JSON.stringify(this.addresses)); },
+                copy(t) { navigator.clipboard.writeText(t); },
+                
+                async fetchPrice() {
+                    try {
+                        const res = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=oasis-network&vs_currencies=usd');
+                        if (res.data['oasis-network']?.usd) this.price = res.data['oasis-network'].usd;
+                    } catch (e) {}
+                },
+                async fetchBalanceFor(addr) {
+                    try {
+                        const res = await axios.get(`https://nexus.oasis.io/v1/consensus/accounts/${addr}`);
+                        const val = (parseFloat(res.data.available) + parseFloat(res.data.escrow || 0)) / 1e9;
+                        const t = this.addresses.find(a => a.address === addr);
+                        if (t) t.balance = val;
+                        this.saveData();
+                    } catch (e) {}
+                },
+                async refreshAll() {
+                    this.loading = true;
+                    await this.fetchPrice();
+                    await Promise.all(this.addresses.map(i => this.fetchBalanceFor(i.address)));
+                    this.loading = false;
+                },
+                // PWA 安装逻辑
+                installPWA() {
+                    if (this.deferredPrompt) {
+                        this.deferredPrompt.prompt();
+                        this.deferredPrompt.userChoice.then((choiceResult) => {
+                            this.deferredPrompt = null;
+                        });
+                    }
+                }
+            },
+            mounted() {
+                this.refreshAll();
+                setInterval(this.refreshAll, 60000);
+                
+                // 监听 PWA 安装事件
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    this.deferredPrompt = e;
+                });
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
