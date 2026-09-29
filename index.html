@@ -1,198 +1,983 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Rose 资产助手</title>
-    
+    <meta name="description" content="Oasis ROSE 钱包余额与资产价值观察工具">
+
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#002776">
+    <meta name="theme-color" content="#060b18">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Rose助手">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://s2.coinmarketcap.com/static/img/coins/200x200/7653.png">
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+
+    <script>
+        // 在首次绘制前确定主题，避免闪屏
+        (function () {
+            var t = localStorage.getItem('rose_theme') ||
+                (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+            document.documentElement.dataset.theme = t;
+            document.querySelector('meta[name="theme-color"]').content = t === 'light' ? '#f3f0e8' : '#060b18';
+        })();
+    </script>
+
+    <!-- 字体异步加载：Google Fonts 不可达时不阻塞渲染，回退到系统字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" media="print" onload="this.media='all'"
+          href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&family=Onest:wght@400;500;600;700&display=swap">
+
+    <script src="./vendor/vue.global.prod.js"></script>
 
     <style>
-        body { background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
-        .gradient-card { background: linear-gradient(135deg, #002776 0%, #00a1df 100%); }
+        :root {
+            --font: "Onest", "PingFang SC", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+            --mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            --radius: 18px;
+            --ease: cubic-bezier(.2, .8, .2, 1);
+            --safe-b: env(safe-area-inset-bottom, 0px);
+        }
+        [data-theme="dark"] {
+            --bg: #060b18;
+            --bg-glow: rgba(79, 216, 255, .13);
+            --bg-glow-2: rgba(255, 93, 125, .07);
+            --surface: rgba(16, 28, 56, .72);
+            --surface-2: rgba(24, 40, 76, .7);
+            --line: rgba(130, 170, 255, .13);
+            --text: #e9effc;
+            --muted: #93a3c8;
+            --faint: #7384ad;
+            --accent: #4fd8ff;
+            --accent-ink: #03121f;
+            --up: #2fe39a;
+            --down: #ff5d7d;
+            --warn: #ffbe5c;
+            --shadow: 0 20px 50px -20px rgba(0, 0, 0, .7);
+            --grid: rgba(130, 170, 255, .045);
+            color-scheme: dark;
+        }
+        [data-theme="light"] {
+            --bg: #f3f0e8;
+            --bg-glow: rgba(0, 104, 201, .10);
+            --bg-glow-2: rgba(212, 42, 77, .06);
+            --surface: rgba(255, 255, 255, .78);
+            --surface-2: rgba(237, 233, 224, .9);
+            --line: rgba(11, 23, 51, .1);
+            --text: #0b1733;
+            --muted: #4a587a;
+            --faint: #5f6b8a;
+            --accent: #0068c9;
+            --accent-ink: #ffffff;
+            --up: #08875a;
+            --down: #cf2749;
+            --warn: #a15f00;
+            --shadow: 0 18px 40px -22px rgba(11, 23, 51, .35);
+            --grid: rgba(11, 23, 51, .04);
+            color-scheme: light;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 15px;
+            line-height: 1.45;
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: contain;
+            transition: background-color .3s var(--ease), color .3s var(--ease);
+        }
+        /* 背景：光晕 + 细网格 + 颗粒 */
+        body::before {
+            content: "";
+            position: fixed; inset: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(600px 420px at 12% -8%, var(--bg-glow), transparent 70%),
+                radial-gradient(520px 380px at 110% 30%, var(--bg-glow-2), transparent 70%),
+                linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 32px,
+                linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 32px 100%;
+            -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 90%);
+                    mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 90%);
+            z-index: 0;
+        }
+        body::after {
+            content: "";
+            position: fixed; inset: 0;
+            pointer-events: none;
+            opacity: .05;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            z-index: 0;
+        }
         [v-cloak] { display: none; }
-        /* 针对 iOS PWA 的顶部安全区域优化 */
-        .safe-top { padding-top: env(safe-area-inset-top); }
+        button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+        button:disabled { cursor: default; }
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+        .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+
+        .shell {
+            position: relative; z-index: 1;
+            max-width: 520px;
+            margin: 0 auto;
+            padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px calc(var(--safe-b) + 112px);
+        }
+
+        /* 入场动画 */
+        .rise { animation: rise .7s var(--ease) both; animation-delay: calc(var(--d, 0) * 70ms); }
+        @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+
+        /* 顶栏 */
+        .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand h1 { margin: 0; font-weight: 600; font-size: 16px; letter-spacing: .01em; }
+        .brand img { width: 30px; height: 30px; border-radius: 9px; box-shadow: 0 6px 18px -6px rgba(79, 216, 255, .5); }
+        .tools { display: flex; gap: 8px; }
+        .icon-btn {
+            width: 40px; height: 40px;
+            display: grid; place-items: center;
+            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            color: var(--muted);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: color .2s, transform .15s var(--ease), opacity .2s;
+        }
+        .icon-btn:hover { color: var(--text); }
+        .icon-btn:active { transform: scale(.94); }
+        .icon-btn:disabled { opacity: .45; }
+        .icon-btn svg { width: 18px; height: 18px; }
+        .spin { animation: spin .9s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 安装提示 */
+        .install {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 12px 12px 16px;
+            margin-bottom: 16px;
+            border-radius: 14px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            font-size: 13.5px;
+            color: var(--muted);
+        }
+        .install p { margin: 0; flex: 1; }
+        .install b { color: var(--text); font-weight: 600; }
+        .install svg.inline { width: 15px; height: 15px; vertical-align: -3px; color: var(--accent); }
+        .btn-sm {
+            padding: 7px 14px; border-radius: 10px;
+            background: var(--accent); color: var(--accent-ink);
+            font-weight: 600; font-size: 13px;
+        }
+        .x-btn { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--faint); }
+        .x-btn svg { width: 16px; height: 16px; }
+
+        /* 总资产 */
+        .hero {
+            position: relative;
+            padding: 22px 20px 18px;
+            border-radius: 24px;
+            background:
+                linear-gradient(160deg, rgba(79, 216, 255, .10), transparent 45%),
+                var(--surface);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            overflow: hidden;
+        }
+        .hero-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+        .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 11.5px; font-weight: 500;
+            padding: 3px 9px; border-radius: 999px;
+            border: 1px solid currentColor;
+            white-space: nowrap;
+        }
+        .badge.live { color: var(--up); border-color: transparent; background: color-mix(in srgb, var(--up) 12%, transparent); }
+        .badge.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 2s ease-in-out infinite; }
+        .badge.warn { color: var(--warn); }
+        .badge.down { color: var(--down); }
+        @keyframes pulse { 50% { opacity: .35; } }
+
+        .total {
+            margin: 10px 0 2px;
+            font-family: var(--mono);
+            font-variant-numeric: tabular-nums;
+            font-weight: 500;
+            letter-spacing: -.05em;
+            line-height: 1.05;
+            white-space: nowrap;
+            transition: opacity .3s;
+        }
+        .total .cur { font-size: .5em; color: var(--muted); margin-right: .18em; vertical-align: .55em; letter-spacing: 0; }
+        .total.dim { opacity: .55; }
+        .delta { font-family: var(--mono); font-size: 13px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+        .delta span { color: var(--muted); }
+        .up { color: var(--up); }
+        .down { color: var(--down); }
+        .flat { color: var(--muted); }
+
+        .spark { display: block; width: calc(100% + 40px); height: 70px; margin: 12px -20px 4px; overflow: visible; }
+        .spark .line { fill: none; stroke-width: 1.8; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+        .spark-empty { height: 70px; margin: 12px 0 4px; }
+
+        .hero-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-top: 14px; border-top: 1px dashed var(--line); }
+        .kv .k { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
+        .kv .v { font-size: 14px; display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .chip { font-family: var(--mono); font-size: 11px; padding: 2px 6px; border-radius: 6px; background: color-mix(in srgb, currentColor 13%, transparent); }
+        .updated { margin-top: 12px; font-size: 11.5px; color: var(--faint); display: flex; justify-content: space-between; gap: 8px; }
+
+        /* 骨架屏 */
+        .skel {
+            border-radius: 10px;
+            background: linear-gradient(90deg, var(--surface-2) 25%, color-mix(in srgb, var(--surface-2) 50%, var(--line)) 50%, var(--surface-2) 75%) 0 0 / 300% 100%;
+            animation: shimmer 1.4s linear infinite;
+        }
+        @keyframes shimmer { to { background-position: -150% 0; } }
+        .skel-xl { height: 46px; width: 72%; margin: 12px 0 10px; }
+        .skel-sm { height: 14px; width: 40%; }
+        .skel-amt { height: 18px; width: 110px; margin-left: auto; }
+
+        /* 钱包列表 */
+        .list-head { display: flex; align-items: baseline; gap: 10px; margin: 28px 4px 12px; }
+        .list-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+        .list-head .count { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+        .list-head .sort { margin-left: auto; font-size: 12px; color: var(--faint); }
+        ul.cards { position: relative; list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+
+        .card {
+            border-radius: var(--radius);
+            background: var(--surface);
+            border: 1px solid var(--line);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            overflow: hidden;
+            transition: border-color .25s;
+        }
+        .card.open { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+        .card-main {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 4px 12px;
+            padding: 15px 16px 13px;
+            text-align: left;
+        }
+        .card-main:active { background: var(--surface-2); }
+        .card-name { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .card-name.mono { font-size: 13px; font-weight: 500; }
+        .card-addr { font-size: 11.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .card-amt { text-align: right; font-size: 15.5px; font-weight: 500; }
+        .card-amt small { font-family: var(--font); font-size: 11px; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
+        .card-usd { text-align: right; font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .card-err { color: var(--warn); font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px; }
+        .share { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+        .share-bar { flex: 1; height: 4px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+        .share-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--up)); transition: width .6s var(--ease); }
+        .share-pct { font-family: var(--mono); font-size: 11px; color: var(--faint); min-width: 44px; text-align: right; }
+
+        .detail { padding: 2px 16px 16px; animation: rise .35s var(--ease) both; }
+        .breakdown { border-radius: 12px; background: var(--surface-2); padding: 4px 12px; margin-bottom: 10px; }
+        .breakdown div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; }
+        .breakdown div + div { border-top: 1px dashed var(--line); }
+        .breakdown .k { font-size: 12.5px; color: var(--muted); }
+        .breakdown .v { font-size: 13px; }
+        .breakdown .v.zero { color: var(--faint); }
+        .full-addr {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 12px; border-radius: 12px;
+            background: var(--surface-2);
+            font-size: 11.5px; color: var(--muted);
+            margin-bottom: 12px;
+        }
+        .full-addr span { flex: 1; word-break: break-all; }
+        .copy-btn { flex: none; color: var(--accent); font-size: 12.5px; font-weight: 600; padding: 4px 2px; }
+        .field { display: block; margin-bottom: 12px; }
+        .field-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+        .input {
+            width: 100%;
+            padding: 11px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: var(--surface-2);
+            color: var(--text);
+            font: inherit; font-size: 16px; /* ≥16px 防止 iOS 聚焦时自动放大 */
+            outline: none;
+            transition: border-color .2s;
+        }
+        .input::placeholder { color: var(--faint); }
+        .input:focus { border-color: var(--accent); }
+        .input.mono { font-family: var(--mono); font-size: 14px; }
+        .input.bad { border-color: var(--down); }
+        .actions { display: flex; gap: 10px; }
+        .btn {
+            flex: 1;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 11px 12px; border-radius: 12px;
+            font-size: 14px; font-weight: 600;
+            border: 1px solid var(--line);
+            background: var(--surface-2);
+            color: var(--text);
+            text-decoration: none;
+            transition: transform .15s var(--ease);
+        }
+        .btn:active { transform: scale(.97); }
+        .btn svg { width: 15px; height: 15px; }
+        .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+        .btn.danger { color: var(--down); }
+
+        /* 列表增删与重排动画 */
+        .card-move { transition: transform .45s var(--ease); }
+        .card-leave-active { position: absolute; left: 0; right: 0; animation: none; transition: opacity .3s, transform .3s var(--ease); }
+        .card-leave-to { opacity: 0; transform: translateX(-24px); }
+
+        /* 空状态 */
+        .empty {
+            text-align: center;
+            padding: 34px 24px 30px;
+            border-radius: var(--radius);
+            border: 1px dashed var(--line);
+            color: var(--muted);
+        }
+        .empty svg { width: 54px; height: 54px; margin-bottom: 10px; }
+        .empty h3 { margin: 0 0 6px; font-size: 16px; color: var(--text); }
+        .empty p { margin: 0 0 18px; font-size: 13.5px; }
+        .empty .btn { display: inline-flex; flex: none; padding: 11px 22px; }
+
+        /* 悬浮按钮 */
+        .fab {
+            position: fixed; z-index: 20;
+            right: max(18px, calc(50vw - 260px + 18px));
+            bottom: calc(var(--safe-b) + 22px);
+            width: 58px; height: 58px;
+            border-radius: 18px;
+            display: grid; place-items: center;
+            background: var(--accent);
+            color: var(--accent-ink);
+            box-shadow: 0 14px 30px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+            transition: transform .2s var(--ease);
+        }
+        .fab:active { transform: scale(.92); }
+        .fab svg { width: 24px; height: 24px; }
+
+        /* 添加钱包面板 */
+        .scrim {
+            position: fixed; inset: 0; z-index: 40;
+            background: rgba(2, 6, 16, .55);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex; align-items: flex-end; justify-content: center;
+        }
+        .sheet {
+            width: 100%; max-width: 520px;
+            padding: 10px 20px calc(var(--safe-b) + 20px);
+            border-radius: 24px 24px 0 0;
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-bottom: 0;
+            box-shadow: 0 -20px 60px -20px rgba(0, 0, 0, .6);
+        }
+        .grabber { width: 38px; height: 4px; border-radius: 4px; background: var(--line); margin: 0 auto 14px; }
+        .sheet h3 { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
+        .input-row { position: relative; }
+        .input-row .input { padding-right: 70px; }
+        .paste {
+            position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+            padding: 6px 10px; border-radius: 8px;
+            font-size: 12.5px; font-weight: 600;
+            color: var(--accent);
+            background: color-mix(in srgb, var(--accent) 12%, transparent);
+        }
+        .hint { font-size: 12px; margin-top: 6px; color: var(--faint); min-height: 18px; }
+        .hint.bad { color: var(--down); }
+        .fade-enter-active, .fade-leave-active { transition: opacity .25s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .fade-enter-active .sheet { animation: sheet-in .35s var(--ease); }
+        .fade-leave-active .sheet { transition: transform .25s; }
+        .fade-leave-to .sheet { transform: translateY(40px); }
+        @keyframes sheet-in { from { transform: translateY(100%); } }
+        @media (min-width: 560px) {
+            .scrim { align-items: center; }
+            .sheet { border-radius: 24px; border-bottom: 1px solid var(--line); padding-bottom: 20px; }
+            .grabber { display: none; }
+        }
+
+        /* 轻提示 */
+        .toast {
+            position: fixed; z-index: 60;
+            left: 50%; bottom: calc(var(--safe-b) + 96px);
+            transform: translateX(-50%);
+            display: flex; align-items: center; gap: 14px;
+            max-width: calc(100vw - 36px);
+            padding: 11px 12px 11px 16px;
+            border-radius: 14px;
+            background: var(--text);
+            color: var(--bg);
+            font-size: 13.5px;
+            white-space: nowrap;
+            box-shadow: 0 16px 40px -12px rgba(0, 0, 0, .5);
+        }
+        .toast span { overflow: hidden; text-overflow: ellipsis; }
+        .toast button { font-weight: 700; padding: 2px 6px; color: #0068c9; }
+        [data-theme="light"] .toast button { color: #4fd8ff; }
+        .toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s var(--ease); }
+        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 12px); }
+
+        /* 下拉刷新指示器 */
+        .ptr {
+            position: fixed; z-index: 30; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 6px);
+            width: 38px; height: 38px; margin-left: -19px;
+            display: grid; place-items: center;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            color: var(--accent);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            pointer-events: none;
+        }
+        .ptr svg { width: 18px; height: 18px; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+        }
     </style>
 </head>
-<body class="text-gray-800 min-h-screen flex flex-col items-center safe-top pb-10">
+<body>
 
-    <div id="app" v-cloak class="w-full max-w-xl p-4 space-y-5">
-        
-        <div v-if="deferredPrompt" class="bg-blue-600 text-white p-3 rounded-lg shadow-lg flex justify-between items-center text-sm animate-bounce">
-            <span>安装 Rose 助手到桌面，体验更好</span>
-            <button @click="installPWA" class="bg-white text-blue-600 px-3 py-1 rounded font-bold text-xs">安装</button>
-        </div>
+<div id="app" v-cloak>
+    <!-- 下拉刷新 -->
+    <div v-if="ptrOffset > 0 || ptrBusy" class="ptr" aria-hidden="true"
+         :style="{ transform: 'translateY(' + (ptrBusy ? 40 : ptrOffset * 0.6) + 'px)', opacity: ptrBusy ? 1 : Math.min(1, ptrOffset / 60) }">
+        <svg :class="{ spin: ptrBusy }" :style="ptrBusy ? null : { transform: 'rotate(' + ptrOffset * 4 + 'deg)' }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>
+    </div>
 
-        <div class="flex justify-between items-center pt-2">
-            <div class="flex items-center gap-2">
-                <img src="https://s2.coinmarketcap.com/static/img/coins/64x64/7653.png" alt="Rose" class="w-8 h-8 rounded-full">
-                <h1 class="text-xl font-bold">Oasis Tracker</h1>
+    <main class="shell">
+        <header class="topbar rise" style="--d:0">
+            <div class="brand">
+                <img src="./icons/icon.svg" alt="">
+                <h1>Rose 资产助手</h1>
             </div>
-            <div class="text-xs font-medium bg-white px-2 py-1 rounded border border-blue-100 text-blue-600 shadow-sm">
-                ROSE ≈ ${{ formatPrice(price) }}
-            </div>
-        </div>
-
-        <div class="gradient-card rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-            <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-            
-            <p class="text-blue-200 text-xs font-medium tracking-wider mb-1">总价值 (USD)</p>
-            <div class="text-4xl font-bold tracking-tight mb-4">
-                $ {{ formatCurrency(totalValue) }}
-            </div>
-            
-            <div class="flex justify-between items-end border-t border-white/20 pt-4">
-                <div>
-                    <p class="text-blue-200 text-xs mb-0.5">持仓数量</p>
-                    <div class="text-xl font-semibold flex items-center gap-1">
-                        {{ formatNumber(totalRose) }} <span class="text-sm opacity-80">ROSE</span>
-                    </div>
-                </div>
-                <button @click="refreshAll" :disabled="loading" class="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full active:bg-white/30 transition">
-                    <i class="fa-solid fa-rotate-right" :class="{'animate-spin': loading}"></i>
+            <div class="tools">
+                <button class="icon-btn" @click="toggleTheme" :aria-label="theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'">
+                    <svg v-if="theme === 'dark'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                </button>
+                <button class="icon-btn" @click="refreshAll" :disabled="loading" aria-label="刷新数据">
+                    <svg :class="{ spin: loading }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>
                 </button>
             </div>
-        </div>
+        </header>
 
-        <div class="space-y-3">
-            <div v-for="(item, index) in addresses" :key="item.address" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div class="flex-1 min-w-0 mr-3">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="text-xs font-bold text-gray-400">#{{index + 1}}</span>
-                        <div class="text-xs font-mono text-gray-500 truncate bg-gray-50 px-1.5 py-0.5 rounded cursor-pointer" @click="copy(item.address)">
-                            {{ formatAddress(item.address) }}
-                        </div>
-                    </div>
-                    <div class="text-lg font-bold text-gray-800 leading-tight">
-                        {{ formatNumber(item.balance) }}
-                    </div>
-                    <div class="text-xs text-gray-400">≈ ${{ formatCurrency(item.balance * price) }}</div>
-                </div>
-                <button @click="removeAddress(index)" class="text-gray-300 hover:text-red-500 p-2">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-        </div>
-
-        <div class="fixed bottom-6 right-6">
-            <button @click="showAddModal = true" class="w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-300 flex items-center justify-center text-xl hover:scale-105 transition active:scale-95">
-                <i class="fa-solid fa-plus"></i>
+        <!-- 安装提示 -->
+        <div v-if="installMode" class="install rise" style="--d:1" role="note">
+            <p v-if="installMode === 'prompt'">把 <b>Rose 助手</b> 装到桌面，打开更快，也能离线查看</p>
+            <p v-else>点击 Safari 底部
+                <svg class="inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="分享"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+                分享，再选 <b>添加到主屏幕</b></p>
+            <button v-if="installMode === 'prompt'" class="btn-sm" @click="installPWA">安装</button>
+            <button class="x-btn" @click="dismissInstall" aria-label="关闭安装提示">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
 
-        <div v-if="showAddModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" @click.self="showAddModal = false">
-            <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-[fadeIn_0.2s_ease-out]">
-                <h3 class="text-lg font-bold mb-4">添加观察钱包</h3>
-                <input v-model="newAddress" type="text" placeholder="oasis1..." class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm mb-4 outline-none focus:border-blue-500">
-                <div class="flex gap-3">
-                    <button @click="showAddModal = false" class="flex-1 py-2.5 text-gray-500 font-medium text-sm">取消</button>
-                    <button @click="addAddress" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 font-medium text-sm shadow-md">确认添加</button>
+        <!-- 总资产 -->
+        <section class="hero rise" style="--d:2" aria-label="总资产">
+            <div class="hero-head">
+                <span class="eyebrow">总资产 · USD</span>
+                <span v-if="marketStatus" class="badge" :class="marketStatus.kind" role="status">{{ marketStatus.text }}</span>
+            </div>
+
+            <div v-if="showSkeleton" class="skel skel-xl"></div>
+            <div v-else class="total" :class="{ dim: priceStale }" :style="{ fontSize: totalFontSize }">
+                <span class="cur">$</span>{{ price == null ? '—' : fmtUsd(shownValue) }}
+            </div>
+
+            <div v-if="showSkeleton" class="skel skel-sm"></div>
+            <div v-else-if="price != null && change != null && totalRose > 0" class="delta" :class="changeClass">
+                {{ change >= 0 ? '▲' : '▼' }} {{ fmtUsdSigned(valueDelta) }} <span>24h {{ fmtPct(change) }}</span>
+            </div>
+            <div v-else class="delta flat">&nbsp;</div>
+
+            <svg v-if="spark" class="spark" viewBox="0 0 300 70" preserveAspectRatio="none" role="img" :aria-label="'ROSE 24 小时价格走势 ' + fmtPct(change)">
+                <defs>
+                    <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" :stop-color="trendColor" stop-opacity=".28"/>
+                        <stop offset="1" :stop-color="trendColor" stop-opacity="0"/>
+                    </linearGradient>
+                </defs>
+                <path :d="spark.area" fill="url(#sparkFill)"/>
+                <path :d="spark.line" class="line" :stroke="trendColor"/>
+            </svg>
+            <div v-else class="spark-empty"></div>
+
+            <div class="hero-foot">
+                <div class="kv">
+                    <span class="k">ROSE 价格</span>
+                    <span class="v">
+                        <span class="mono">{{ price == null ? '—' : '$' + fmtPrice(price) }}</span>
+                        <span v-if="change != null" class="chip" :class="changeClass">{{ fmtPct(change) }}</span>
+                    </span>
+                </div>
+                <div class="kv">
+                    <span class="k">持仓 ROSE</span>
+                    <span class="v mono">{{ fmtRose(totalRose) }}</span>
                 </div>
             </div>
+            <div class="updated">
+                <span>{{ market.updatedAt ? '价格更新于 ' + fmtTime(market.updatedAt) : '尚未获取到价格' }}</span>
+                <span>Binance · Oasis Nexus</span>
+            </div>
+        </section>
+
+        <!-- 钱包列表 -->
+        <section aria-label="观察钱包">
+            <div class="list-head rise" style="--d:3">
+                <h2>观察钱包</h2>
+                <span class="count">{{ addresses.length }}</span>
+                <span v-if="addresses.length > 1" class="sort">按持仓排序</span>
+            </div>
+
+            <div v-if="!addresses.length" class="empty rise" style="--d:4">
+                <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                    <circle cx="32" cy="32" r="20" stroke="var(--accent)" stroke-width="3" stroke-dasharray="4 6" stroke-linecap="round"/>
+                    <circle cx="46" cy="18" r="5" fill="var(--down)"/>
+                    <path d="M32 25v14M25 32h14" stroke="var(--text)" stroke-width="3" stroke-linecap="round"/>
+                </svg>
+                <h3>还没有观察的钱包</h3>
+                <p>添加一个 oasis1 开头的地址，<br>余额和资产价值会自动同步。</p>
+                <button class="btn primary" @click="openAdd">添加第一个钱包</button>
+            </div>
+
+            <transition-group v-else name="card" tag="ul" class="cards">
+                <li v-for="(item, i) in sorted" :key="item.address" class="card rise" :class="{ open: expanded === item.address }" :style="{ '--d': Math.min(i, 6) + 4 }">
+                    <button class="card-main" @click="toggle(item.address)" :aria-expanded="expanded === item.address">
+                        <div style="min-width:0">
+                            <template v-if="item.label">
+                                <div class="card-name">{{ item.label }}</div>
+                                <div class="card-addr mono">{{ shortAddr(item.address, 8, 4) }}</div>
+                            </template>
+                            <template v-else>
+                                <div class="card-name mono">{{ shortAddr(item.address, 8, 4) }}</div>
+                                <div class="card-addr">未命名 · 点开可加备注</div>
+                            </template>
+                        </div>
+                        <div>
+                            <div v-if="item.updatedAt == null && loading" class="skel skel-amt"></div>
+                            <div v-else class="card-amt mono">{{ fmtRose(totalOf(item)) }}<small>ROSE</small></div>
+                            <div class="card-usd">
+                                <span v-if="item.error" class="card-err">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+                                    余额更新失败
+                                </span>
+                                <span v-else-if="price != null" class="mono">≈ ${{ fmtUsd(totalOf(item) * price) }}</span>
+                            </div>
+                        </div>
+                        <div v-if="addresses.length > 1" class="share">
+                            <div class="share-bar"><i :style="{ width: shareOf(item) + '%' }"></i></div>
+                            <span class="share-pct">{{ shareOf(item).toFixed(1) }}%</span>
+                        </div>
+                    </button>
+
+                    <div v-if="expanded === item.address" class="detail">
+                        <div class="breakdown">
+                            <div><span class="k">可用</span><span class="v mono" :class="{ zero: !item.available }">{{ fmtRose(item.available) }}</span></div>
+                            <div><span class="k">质押中</span><span class="v mono" :class="{ zero: !item.staked }">{{ fmtRose(item.staked) }}</span></div>
+                            <div><span class="k">解绑中</span><span class="v mono" :class="{ zero: !item.debonding }">{{ fmtRose(item.debonding) }}</span></div>
+                        </div>
+                        <div class="full-addr">
+                            <span class="mono">{{ item.address }}</span>
+                            <button class="copy-btn" @click="copy(item.address)">复制</button>
+                        </div>
+                        <label class="field">
+                            <span class="field-label">备注名</span>
+                            <input class="input" v-model.trim="item.label" @change="save" maxlength="20" placeholder="例如：冷钱包、交易所">
+                        </label>
+                        <div class="actions">
+                            <a class="btn" :href="explorerUrl(item.address)" target="_blank" rel="noopener">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
+                                浏览器查看
+                            </a>
+                            <button class="btn danger" @click="removeItem(item)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+                                删除
+                            </button>
+                        </div>
+                    </div>
+                </li>
+            </transition-group>
+        </section>
+    </main>
+
+    <button v-if="addresses.length" class="fab" @click="openAdd" aria-label="添加钱包">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+
+    <!-- 添加钱包 -->
+    <transition name="fade">
+        <div v-if="sheetOpen" class="scrim" @click.self="closeAdd">
+            <form class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" @submit.prevent="submitAdd" novalidate>
+                <div class="grabber"></div>
+                <h3 id="sheet-title">添加观察钱包</h3>
+                <label class="field">
+                    <span class="field-label">钱包地址</span>
+                    <div class="input-row">
+                        <input ref="addrInput" class="input mono" :class="{ bad: form.error }" v-model="form.address" @input="form.error = ''"
+                               placeholder="oasis1…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+                        <button v-if="canPaste" type="button" class="paste" @click="pasteAddr">粘贴</button>
+                    </div>
+                    <div class="hint" :class="{ bad: form.error }" aria-live="polite">{{ form.error || '只读观察，不需要私钥或助记词' }}</div>
+                </label>
+                <label class="field">
+                    <span class="field-label">备注名（可选）</span>
+                    <input class="input" v-model.trim="form.label" maxlength="20" placeholder="例如：冷钱包" enterkeyhint="done">
+                </label>
+                <div class="actions" style="margin-top:6px">
+                    <button type="button" class="btn" @click="closeAdd">取消</button>
+                    <button type="submit" class="btn primary">添加</button>
+                </div>
+            </form>
         </div>
+    </transition>
 
-    </div>
+    <transition name="toast">
+        <div v-if="toast" class="toast" role="status">
+            <span>{{ toast.text }}</span>
+            <button v-if="toast.action" @click="runToastAction">{{ toast.action.label }}</button>
+        </div>
+    </transition>
+</div>
 
-    <script>
-        // 注册 Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').then(reg => console.log('SW Registered', reg.scope));
-            });
-        }
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+    }
 
-        const { createApp } = Vue;
+    const API = {
+        ticker: 'https://api.binance.com/api/v3/ticker/24hr?symbol=ROSEUSDT',
+        klines: 'https://api.binance.com/api/v3/klines?symbol=ROSEUSDT&interval=1h&limit=24',
+        account: a => `https://nexus.oasis.io/v1/consensus/accounts/${a}`,
+        explorer: a => `https://explorer.oasis.io/mainnet/consensus/address/${a}`,
+    };
+    const REFRESH_MS = 60_000;
+    const STALE_MS = 5 * 60_000;
+    const UNIT = 1e9; // 1 ROSE = 10^9 base units
+    const ADDR_RE = /^oasis1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{40}$/;
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
-        createApp({
-            data() {
-                return {
-                    price: 0,
-                    loading: false,
-                    showAddModal: false,
-                    deferredPrompt: null,
-                    newAddress: '',
-                    addresses: JSON.parse(localStorage.getItem('rose_addresses')) || [
-                        { address: 'oasis1qpfpj0fr6tv3k54p2euddyj6lezm5tfqhv3qjtd6', balance: 0 }
-                    ]
+    const store = {
+        get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+        set(k, v) { localStorage.setItem(k, JSON.stringify(v)); },
+    };
+
+    async function getJSON(url) {
+        const res = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(12_000) : undefined });
+        if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+        return res.json();
+    }
+
+    // 兼容旧版数据：{ address, balance } → 新结构
+    function loadAddresses() {
+        const raw = store.get('rose_addresses', []);
+        if (!Array.isArray(raw)) return [];
+        return raw.filter(x => x && x.address).map(x => ({
+            address: x.address,
+            label: x.label || '',
+            available: x.available ?? (parseFloat(x.balance) || 0),
+            staked: x.staked || 0,
+            debonding: x.debonding || 0,
+            updatedAt: x.updatedAt ?? (x.balance != null ? 0 : null),
+            error: false,
+        }));
+    }
+
+    let refreshTimer = null, toastTimer = null, tweenRaf = null;
+
+    Vue.createApp({
+        data() {
+            return {
+                addresses: loadAddresses(),
+                market: { price: null, change: null, spark: [], updatedAt: null, ...store.get('rose_market', {}), error: false },
+                loading: false,
+                lastRefresh: 0,
+                now: Date.now(),
+                shownValue: 0,
+                expanded: null,
+                sheetOpen: false,
+                form: { address: '', label: '', error: '' },
+                canPaste: !!(navigator.clipboard && navigator.clipboard.readText),
+                toast: null,
+                theme: document.documentElement.dataset.theme,
+                deferredPrompt: null,
+                installDismissed: store.get('rose_install_dismissed', false),
+                ptrOffset: 0,
+                ptrBusy: false,
+            };
+        },
+        computed: {
+            price() { return this.market.price; },
+            change() { return this.market.change; },
+            totalRose() { return this.addresses.reduce((s, a) => s + this.totalOf(a), 0); },
+            totalValue() { return this.price == null ? 0 : this.totalRose * this.price; },
+            valueDelta() { return this.totalValue - this.totalValue / (1 + this.change / 100); },
+            sorted() { return [...this.addresses].sort((a, b) => this.totalOf(b) - this.totalOf(a)); },
+            changeClass() { return this.change == null ? 'flat' : this.change > 0 ? 'up' : this.change < 0 ? 'down' : 'flat'; },
+            trendColor() { return this.change != null && this.change < 0 ? 'var(--down)' : 'var(--up)'; },
+            showSkeleton() { return this.price == null && this.loading; },
+            priceStale() { return this.market.error || (!!this.market.updatedAt && this.now - this.market.updatedAt > STALE_MS); },
+            marketStatus() {
+                const m = this.market;
+                if (m.error) return m.updatedAt ? { kind: 'warn', text: '价格获取失败 · 显示缓存' } : { kind: 'down', text: '价格暂不可用' };
+                if (!m.updatedAt) return null;
+                if (this.now - m.updatedAt > STALE_MS) return { kind: 'warn', text: '数据可能已过期' };
+                return { kind: 'live', text: '实时' };
+            },
+            totalFontSize() {
+                const len = (this.price == null ? '—' : this.fmtUsd(this.totalValue)).length + 1;
+                return Math.max(1.7, Math.min(3.3, 25 / len)).toFixed(2) + 'rem';
+            },
+            spark() {
+                const pts = this.market.spark;
+                if (!pts || pts.length < 2) return null;
+                const min = Math.min(...pts), max = Math.max(...pts), span = max - min || 1;
+                const W = 300, H = 70, pad = 6;
+                const xy = pts.map((p, i) => [(i / (pts.length - 1)) * W, pad + (1 - (p - min) / span) * (H - pad * 2)]);
+                const line = xy.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1)).join(' ');
+                return { line, area: `${line} L${W} ${H} L0 ${H} Z` };
+            },
+            installMode() {
+                if (this.installDismissed || isStandalone) return null;
+                if (this.deferredPrompt) return 'prompt';
+                if (isIOS) return 'ios';
+                return null;
+            },
+        },
+        watch: {
+            totalValue(to, from) { this.tween(from, to); },
+        },
+        methods: {
+            // ---------- 格式化 ----------
+            fmtUsd(n) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); },
+            fmtUsdSigned(n) { return (n >= 0 ? '+$' : '−$') + this.fmtUsd(Math.abs(n)); },
+            fmtRose(n) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); },
+            fmtPrice(n) { return new Intl.NumberFormat('en-US', { minimumSignificantDigits: 4, maximumSignificantDigits: 4 }).format(n); },
+            fmtPct(n) { return n == null ? '—' : (n > 0 ? '+' : '') + n.toFixed(2) + '%'; },
+            fmtTime(t) { return new Date(t).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); },
+            shortAddr(a, head = 10, tail = 6) { return a.slice(0, head) + '…' + a.slice(-tail); },
+            explorerUrl: API.explorer,
+            totalOf(a) { return (a.available || 0) + (a.staked || 0) + (a.debonding || 0); },
+            shareOf(a) { return this.totalRose > 0 ? (this.totalOf(a) / this.totalRose) * 100 : 0; },
+
+            // 总资产数字滚动
+            tween(from, to) {
+                cancelAnimationFrame(tweenRaf);
+                if (reducedMotion || !from) { this.shownValue = to; return; }
+                const t0 = performance.now(), dur = 800;
+                const step = t => {
+                    const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+                    this.shownValue = from + (to - from) * e;
+                    if (p < 1) tweenRaf = requestAnimationFrame(step);
+                };
+                tweenRaf = requestAnimationFrame(step);
+            },
+
+            // ---------- 数据 ----------
+            async fetchMarket() {
+                try {
+                    const [t, k] = await Promise.all([getJSON(API.ticker), getJSON(API.klines).catch(() => null)]);
+                    const price = parseFloat(t.lastPrice), change = parseFloat(t.priceChangePercent);
+                    if (!isFinite(price) || price <= 0) throw new Error('invalid price');
+                    this.market = {
+                        price,
+                        change: isFinite(change) ? change : null,
+                        spark: k ? k.map(r => parseFloat(r[4])) : this.market.spark,
+                        updatedAt: Date.now(),
+                        error: false,
+                    };
+                } catch (e) {
+                    this.market = { ...this.market, error: true };
+                }
+                const { error, ...toSave } = this.market;
+                store.set('rose_market', toSave);
+            },
+            async fetchBalance(item) {
+                try {
+                    let d;
+                    try { d = await getJSON(API.account(item.address)); }
+                    catch (e) { if (e.status === 404) d = {}; else throw e; } // 从未有过交易的地址
+                    item.available = (Number(d.available) || 0) / UNIT;
+                    item.staked = (Number(d.escrow) || 0) / UNIT;
+                    item.debonding = (Number(d.debonding) || 0) / UNIT;
+                    item.updatedAt = Date.now();
+                    item.error = false;
+                } catch (e) {
+                    item.error = true;
                 }
             },
-            computed: {
-                totalRose() { return this.addresses.reduce((sum, item) => sum + (parseFloat(item.balance) || 0), 0); },
-                totalValue() { return this.totalRose * this.price; }
+            async refreshAll() {
+                if (this.loading) return;
+                this.loading = true;
+                await Promise.allSettled([this.fetchMarket(), ...this.addresses.map(a => this.fetchBalance(a))]);
+                this.save();
+                this.lastRefresh = this.now = Date.now();
+                this.loading = false;
             },
-            methods: {
-                formatNumber(n) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n); },
-                formatCurrency(n) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n); },
-                formatPrice(n) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 4 }).format(n); },
-                formatAddress(a) { return a ? a.substring(0, 8) + '...' + a.substring(a.length - 6) : ''; },
-                
-                async addAddress() {
-                    if (!this.newAddress.startsWith('oasis1')) return alert('地址格式错误');
-                    if (this.addresses.find(i => i.address === this.newAddress)) return alert('已存在');
-                    this.addresses.push({ address: this.newAddress, balance: 0 });
-                    this.newAddress = '';
-                    this.showAddModal = false;
-                    this.saveData();
-                    await this.refreshAll();
-                },
-                removeAddress(idx) {
-                    if(confirm('删除此地址?')) { this.addresses.splice(idx, 1); this.saveData(); }
-                },
-                saveData() { localStorage.setItem('rose_addresses', JSON.stringify(this.addresses)); },
-                copy(t) { navigator.clipboard.writeText(t); },
-                
-                async fetchPrice() {
-                    try {
-                        const res = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=ROSEUSDT');
-                        if (res.data?.price) this.price = parseFloat(res.data.price);
-                    } catch (e) {}
-                },
-                async fetchBalanceFor(addr) {
-                    try {
-                        const res = await axios.get(`https://nexus.oasis.io/v1/consensus/accounts/${addr}`);
-                        const val = (parseFloat(res.data.available) + parseFloat(res.data.escrow || 0)) / 1e9;
-                        const t = this.addresses.find(a => a.address === addr);
-                        if (t) t.balance = val;
-                        this.saveData();
-                    } catch (e) {}
-                },
-                async refreshAll() {
-                    this.loading = true;
-                    await this.fetchPrice();
-                    await Promise.all(this.addresses.map(i => this.fetchBalanceFor(i.address)));
-                    this.loading = false;
-                },
-                // PWA 安装逻辑
-                installPWA() {
-                    if (this.deferredPrompt) {
-                        this.deferredPrompt.prompt();
-                        this.deferredPrompt.userChoice.then((choiceResult) => {
-                            this.deferredPrompt = null;
-                        });
-                    }
+            save() {
+                store.set('rose_addresses', this.addresses.map(({ error, ...rest }) => rest));
+            },
+            startTimer() { this.stopTimer(); refreshTimer = setInterval(this.refreshAll, REFRESH_MS); },
+            stopTimer() { clearInterval(refreshTimer); },
+
+            // ---------- 交互 ----------
+            toggle(addr) { this.expanded = this.expanded === addr ? null : addr; },
+            openAdd() {
+                this.form = { address: '', label: '', error: '' };
+                this.sheetOpen = true;
+                this.$nextTick(() => this.$refs.addrInput && this.$refs.addrInput.focus());
+            },
+            closeAdd() { this.sheetOpen = false; },
+            async pasteAddr() {
+                try {
+                    this.form.address = (await navigator.clipboard.readText()).trim();
+                    this.form.error = '';
+                } catch {
+                    this.form.error = '无法读取剪贴板，请长按输入框手动粘贴';
                 }
             },
-            mounted() {
-                this.refreshAll();
-                setInterval(this.refreshAll, 60000);
-                
-                // 监听 PWA 安装事件
-                window.addEventListener('beforeinstallprompt', (e) => {
-                    e.preventDefault();
-                    this.deferredPrompt = e;
+            submitAdd() {
+                const address = this.form.address.trim().toLowerCase();
+                if (!address) return (this.form.error = '请输入钱包地址');
+                if (!ADDR_RE.test(address)) return (this.form.error = '地址格式不对：应为 oasis1 开头、共 46 位');
+                if (this.addresses.some(a => a.address === address)) return (this.form.error = '这个地址已经在列表里了');
+                this.addresses.push({ address, label: this.form.label, available: 0, staked: 0, debonding: 0, updatedAt: null, error: false });
+                this.save();
+                this.sheetOpen = false;
+                this.showToast('已添加，正在同步余额…');
+                // 取响应式代理再修改，界面才会更新
+                const item = this.addresses.find(a => a.address === address);
+                this.fetchBalance(item).then(() => {
+                    this.save();
+                    if (this.price == null) this.fetchMarket();
                 });
-            }
-        }).mount('#app');
-    </script>
+            },
+            removeItem(item) {
+                const idx = this.addresses.indexOf(item);
+                if (idx < 0) return;
+                this.addresses.splice(idx, 1);
+                this.expanded = null;
+                this.save();
+                this.showToast(`已删除「${item.label || this.shortAddr(item.address, 10, 4)}」`, {
+                    label: '撤销',
+                    fn: () => {
+                        if (this.addresses.some(a => a.address === item.address)) return;
+                        this.addresses.splice(Math.min(idx, this.addresses.length), 0, item);
+                        this.save();
+                    },
+                }, 6000);
+            },
+            async copy(text) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                } catch {
+                    // 非 HTTPS 或权限被拒时的降级方案
+                    const ta = Object.assign(document.createElement('textarea'), { value: text });
+                    ta.style.cssText = 'position:fixed;opacity:0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    ta.remove();
+                }
+                this.showToast('地址已复制');
+            },
+            showToast(text, action = null, ms = 2200) {
+                clearTimeout(toastTimer);
+                this.toast = { text, action };
+                toastTimer = setTimeout(() => (this.toast = null), ms);
+            },
+            runToastAction() {
+                const fn = this.toast && this.toast.action && this.toast.action.fn;
+                clearTimeout(toastTimer);
+                this.toast = null;
+                if (fn) fn();
+            },
+            applyTheme(t) {
+                this.theme = t;
+                document.documentElement.dataset.theme = t;
+                document.querySelector('meta[name="theme-color"]').content = t === 'light' ? '#f3f0e8' : '#060b18';
+            },
+            toggleTheme() {
+                const t = this.theme === 'dark' ? 'light' : 'dark';
+                localStorage.setItem('rose_theme', t);
+                this.applyTheme(t);
+            },
+            installPWA() {
+                if (!this.deferredPrompt) return;
+                this.deferredPrompt.prompt();
+                this.deferredPrompt.userChoice.finally(() => (this.deferredPrompt = null));
+            },
+            dismissInstall() {
+                this.installDismissed = true;
+                store.set('rose_install_dismissed', true);
+            },
+
+            // 下拉刷新
+            initPullToRefresh() {
+                let startY = null;
+                addEventListener('touchstart', e => {
+                    startY = window.scrollY <= 0 && !this.sheetOpen && !this.loading ? e.touches[0].clientY : null;
+                }, { passive: true });
+                addEventListener('touchmove', e => {
+                    if (startY == null) return;
+                    const dy = e.touches[0].clientY - startY;
+                    this.ptrOffset = dy > 0 ? Math.min(110, dy * 0.5) : 0;
+                }, { passive: true });
+                addEventListener('touchend', async () => {
+                    const trigger = this.ptrOffset >= 60;
+                    this.ptrOffset = 0;
+                    startY = null;
+                    if (!trigger) return;
+                    this.ptrBusy = true;
+                    await this.refreshAll();
+                    this.ptrBusy = false;
+                }, { passive: true });
+            },
+        },
+        mounted() {
+            this.shownValue = this.totalValue;
+            this.refreshAll();
+            this.startTimer();
+            setInterval(() => (this.now = Date.now()), 15_000);
+
+            // 后台时暂停轮询，回到前台立即补一次
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) return this.stopTimer();
+                this.now = Date.now();
+                if (Date.now() - this.lastRefresh > 30_000) this.refreshAll();
+                this.startTimer();
+            });
+
+            // 跟随系统主题（除非用户手动选过）
+            matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+                if (!localStorage.getItem('rose_theme')) this.applyTheme(e.matches ? 'light' : 'dark');
+            });
+
+            addEventListener('keydown', e => { if (e.key === 'Escape' && this.sheetOpen) this.closeAdd(); });
+            addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.deferredPrompt = e; });
+            addEventListener('appinstalled', () => (this.deferredPrompt = null));
+            this.initPullToRefresh();
+        },
+    }).mount('#app');
+</script>
 </body>
 </html>
