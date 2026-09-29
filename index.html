@@ -153,8 +153,8 @@
                 
                 async fetchPrice() {
                     try {
-                        const res = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=oasis-network&vs_currencies=usd');
-                        if (res.data['oasis-network']?.usd) this.price = res.data['oasis-network'].usd;
+                        const res = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=ROSEUSDT');
+                        if (res.data?.price) this.price = parseFloat(res.data.price);
                     } catch (e) {}
                 },
                 async fetchBalanceFor(addr) {

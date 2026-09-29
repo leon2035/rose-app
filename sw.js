@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rose-tracker-v1';
+const CACHE_NAME = 'rose-tracker-v2';
 const ASSETS_TO_CACHE = [
     './index.html',
     './manifest.json',
@@ -33,7 +33,7 @@ self.addEventListener('activate', (event) => {
 // 拦截请求
 self.addEventListener('fetch', (event) => {
     // API 请求（价格、余额）直接走网络，不缓存，保证数据最新
-    if (event.request.url.includes('api.coingecko.com') || 
+    if (event.request.url.includes('api.binance.com') || 
         event.request.url.includes('nexus.oasis.io')) {
         return; 
     }
